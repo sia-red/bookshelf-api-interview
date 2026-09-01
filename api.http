@@ -1,0 +1,121 @@
+# A runnable tour of this API's response contract: every endpoint, failures included.
+#
+# JetBrains IDEs open this file natively. In VS Code, install the REST Client extension once:
+#     code --install-extension humao.rest-client
+# then click "Send Request" above any block. If you would rather use curl, the README has the
+# equivalents — and reading this file straight through works too.
+#
+# Start the API first with `npm run dev`. Changed PORT? Update @host below to match.
+
+@host = http://localhost:3002
+@api = {{host}}/api/v1
+
+### Liveness — outside the version prefix
+GET {{host}}/health
+
+### List — defaults: page 1, 20 per page, sorted by title
+GET {{api}}/book
+
+### List — second page of five
+GET {{api}}/book?page=2&pageSize=5
+
+### List — newest first
+GET {{api}}/book?sortBy=publishedYear&sortOrder=desc&pageSize=5
+
+### List — search by title, case-insensitive
+GET {{api}}/book?search=harbour
+
+### List — 400: sortBy outside the whitelist
+GET {{api}}/book?sortBy=acquisitionCost
+
+### List — 400: pageSize above the cap of 100
+GET {{api}}/book?pageSize=999
+
+### Detail — 200, note the derived `available` and the absent acquisitionCost
+GET {{api}}/book/book-001
+
+### Detail — a book with no copies on the shelf: available is false
+GET {{api}}/book/book-002
+
+### Detail — 404 with the catalogue error code
+GET {{api}}/book/does-not-exist
+
+### Create — 201. Omitting copiesAvailable puts every copy on the shelf
+POST {{api}}/book
+Content-Type: application/json
+
+{
+  "title": "The Ropemaker Variations",
+  "authorName": "Ines Karadzic",
+  "isbn": "9791234567890",
+  "genre": "fiction",
+  "publishedYear": 2024,
+  "copiesTotal": 4
+}
+
+### Create — 409: that ISBN is already in the catalogue
+POST {{api}}/book
+Content-Type: application/json
+
+{
+  "title": "A Second Copy",
+  "authorName": "Ines Karadzic",
+  "isbn": "9784100000000",
+  "genre": "fiction",
+  "publishedYear": 2024,
+  "copiesTotal": 2
+}
+
+### Create — 400: more copies on the shelf than the library owns
+POST {{api}}/book
+Content-Type: application/json
+
+{
+  "title": "Impossible Inventory",
+  "authorName": "Ines Karadzic",
+  "isbn": "9791111111111",
+  "genre": "essay",
+  "publishedYear": 2020,
+  "copiesTotal": 2,
+  "copiesAvailable": 9
+}
+
+### Create — 400: per-field validation detail
+POST {{api}}/book
+Content-Type: application/json
+
+{
+  "title": "",
+  "authorName": "X",
+  "isbn": "123",
+  "genre": "graphic-novel",
+  "publishedYear": 1200,
+  "copiesTotal": 0
+}
+
+### (not built yet) Record a loan — the endpoint you are asked to add
+POST {{api}}/book/book-001/loan
+Content-Type: application/json
+
+{
+  "borrowerName": "Ada Whitfield"
+}
+
+### (not built yet) Record a loan on a book with no copies on the shelf — expect 409
+POST {{api}}/book/book-002/loan
+Content-Type: application/json
+
+{
+  "borrowerName": "Ada Whitfield"
+}
+
+### 400, not 500, when the body is not valid JSON
+# The body below is invalid on purpose: it never closes its brace. Sending broken JSON is the
+# whole point of this request — a client that cannot be parsed must be told so, not handed a 500.
+POST {{api}}/book
+Content-Type: application/json
+
+{"title": "This body is missing its closing brace"
+
+### 404 with the error envelope on an unknown route — last request in this file
+GET {{api}}/nowhere
